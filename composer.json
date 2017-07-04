@@ -9,5 +9,10 @@
             "name": "Steven Brown",
             "email": "steven@float.com"
         }
-    ]
+    ],
+    "autoload": {
+        "psr-4": {
+            "floatschedule\\float-yii2-components\\": ""
+        }
+    }
 }
