@@ -1,5 +1,5 @@
 {
-    "name": "float/float-yii2-components",
+    "name": "floatschedule/float-yii2-components",
     "type": "yii2-extension",
     "require": {
         "yiisoft/yii2": "^2.0"
