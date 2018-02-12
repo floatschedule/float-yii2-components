@@ -6,8 +6,8 @@
     },
     "authors": [
         {
-            "name": "Steven Brown",
-            "email": "steven@float.com"
+            "name": "Float",
+            "email": "tech@float.com"
         }
     ],
     "autoload": {
