@@ -10,8 +10,8 @@ use Yii;
 class Logger
 {
     public const LEVEL_DEBUG = 'debug';
-    public const LEVEL_INFO = 'info';
-    public const LEVEL_WARN = 'warn';
+    public const LEVEL_INFO  = 'info';
+    public const LEVEL_WARN  = 'warn';
     public const LEVEL_ERROR = 'error';
     public const LEVEL_FATAL = 'fatal';
 
