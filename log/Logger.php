@@ -168,7 +168,7 @@ class Logger
         $str = preg_replace('/[^\PC\s]/u', '', $str);
         $str = trim($str);
 
-        $maxLength = 1000;
+        $maxLength = 250;
         if (mb_strlen($str) > $maxLength) {
             $str = mb_substr($str, 0, $maxLength) . '... [truncated]';
         }
