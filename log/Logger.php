@@ -6,6 +6,12 @@ use Yii;
 
 /**
  * Logger Utility class.
+ * 
+ * @method static void debug(string $type, string $message, array $details = [])
+ * @method static void info(string $type, string $message, array $details = [])
+ * @method static void warn(string $type, string $message, array $details = [])
+ * @method static void error(string $type, string $message, array $details = [])
+ * @method static void fatal(string $type, string $message, array $details = [])
  */
 class Logger
 {
