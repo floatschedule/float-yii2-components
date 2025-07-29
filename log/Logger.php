@@ -161,7 +161,7 @@ class Logger
     }
 
     /**
-     * Mask emails in string. d
+     * Mask emails in string.
      *
      * @param string $text - Text.
      *
