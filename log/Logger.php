@@ -43,47 +43,50 @@ class Logger
             throw new \BadMethodCallException("Invalid log level: $name");
         }
 
-        $type    = self::sanitizeString($arguments[0]) ?? 'GENERAL'; // Log type eg. RATE_LIMIT, EMAIL_VERIFICATION
-        $message = self::sanitizeString($arguments[1]) ?? '';        // Message string.
-        $details = self::sanitizeArray($arguments[2] ?? []); // Array with details.
+        $type     = self::sanitizeString($arguments[0]) ?? 'GENERAL';          // Log type eg. RATE_LIMIT, EMAIL_VERIFICATION
+        $category = self::sanitizeString($arguments[1]) ?? 'GENERAL_CATEGORY'; // Log category eg. VERIFICATION_MISMATCH
+        $message  = self::sanitizeString($arguments[2]) ?? '';                 // Message string.
+        $details  = self::sanitizeArray($arguments[3] ?? []);                  // Array with details.
 
-        self::log(self::$levels[$name], $type, $message, $details);
+        self::log(self::$levels[$name], $type, $category, $message, $details);
     }
 
     /**
      * Log function.
      *
-     * @param string $status  - Log status type.
-     * @param string $type    - Log type eg. RATE_LIMIT, EMAIL_VERIFICATION
-     * @param string $message - Message string.
-     * @param array  $details - Array with details.
+     * @param string $status   - Log status type.
+     * @param string $type     - Log type eg. RATE_LIMIT, EMAIL_VERIFICATION
+     * @param string $category - Log category eg. VERIFICATION_MISMATCH, VERIFICATION_MISMATCH
+     * @param string $message  - Message string.
+     * @param array  $details  - Array with details.
      *
      * @return void
      */
-    private static function log(string $status, string $type, string $message, array $details): void
+    private static function log(string $status, string $type, string $category, string $message, array $details): void
     {
         try {
             $companyId = Yii::$app->user->identity->company_id ?? null;
             $accountId = Yii::$app->user->id ?? null;
 
             $log = [
-                'log_status' => $status,
-                'log_type'   => strtoupper($type),
-                'message'    => $message,
-                'details'    => $details,
-                'service'    => getenv('DD_SERVICE') ?: '',
-                'env'        => getenv('DD_ENV') ?: 'lws',
-                'version'    => getenv('DD_VERSION') ?: null,
-                'pod'        => getenv('HOSTNAME') ?: php_uname('n'),
-                'company_id' => $companyId,
-                'account_id' => $accountId,
-                'dd' => [
+                'log_status'   => $status,
+                'log_type'     => strtoupper($type),
+                'log_category' => strtoupper($category),
+                'message'      => $message,
+                'details'      => $details,
+                'service'      => getenv('DD_SERVICE') ?: '',
+                'env'          => getenv('DD_ENV') ?: 'lws',
+                'version'      => getenv('DD_VERSION') ?: null,
+                'pod'          => getenv('HOSTNAME') ?: php_uname('n'),
+                'company_id'   => $companyId,
+                'account_id'   => $accountId,
+                'dd'           => [
                     'trace_id' => function_exists('\\DDTrace\\logs_correlation_trace_id')
                         ? \DDTrace\logs_correlation_trace_id()
                         : null,
                 ],
-                'cloud_trace' => $_SERVER['HTTP_X_CLOUD_TRACE_CONTEXT'] ?? null,
-                'network' => [
+                'cloud_trace'  => $_SERVER['HTTP_X_CLOUD_TRACE_CONTEXT'] ?? null,
+                'network'      => [
                     'client' => [
                         'ip' => self::getIpAddress(),
                     ],
@@ -132,11 +135,22 @@ class Logger
             if (is_array($value)) {
                 $data[$key] = self::sanitizeArray($value);
             } elseif (is_object($value)) {
-                $data[$key] = method_exists($value, '__toString')
-                    ? (string) $value
-                    : get_class($value);
+                if (method_exists($value, '__toString')) {
+                    $stringValue = (string) $value;
+                    // Mask any emails found within the string
+                    $data[$key] = self::maskEmailsInString($stringValue);
+                } else {
+                    $data[$key] = get_class($value);
+                }
             } elseif (is_resource($value)) {
                 $data[$key] = 'resource';
+            } elseif (is_string($value) && filter_var($value, FILTER_VALIDATE_EMAIL)) {
+                // Detect and mask email
+                $data[$key] = self::maskEmail($value);
+                if ($key === 'email') {
+                    [$local, $domain] = explode('@', $value);
+                    $data['email_domain'] = $domain;
+                }
             } else {
                 // scalar or null, safe to keep as is
                 $data[$key] = $value;
@@ -144,6 +158,48 @@ class Logger
         }
 
         return $data;
+    }
+
+    /**
+     * Mask emails in string.
+     *
+     * @param string $text - Text.
+     *
+     * @return string
+     */
+    private static function maskEmailsInString(string $text): string
+    {
+        return preg_replace_callback(
+            '/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i',
+            fn($matches) => self::maskEmail($matches[0]),
+            $text
+        );
+    }
+
+    /**
+     * Mask email.
+     *
+     * @param string $email - Email to be masked.
+     *
+     * @return string
+     */
+    private static function maskEmail(string $email): string
+    {
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $email;
+        }
+
+        [$local, $domain] = explode('@', $email);
+
+        if (mb_strlen($local) < 3) {
+            // Too short to mask meaningfully
+            return $email;
+        }
+
+        $first = mb_substr($local, 0, 1);
+        $last  = mb_substr($local, -1);
+
+        return $first . '***' . $last . '@' . $domain;
     }
 
     /**
@@ -170,6 +226,11 @@ class Logger
             $str = (string) $input;
         }
 
+        // Mask all emails in Strings.
+        $str = self::maskEmailsInString($str);
+        // Remove URLs (http, https, www)
+        $str = preg_replace('/\b(?:https?:\/\/|www\.)\S+/i', '', $str);
+        
         // Now sanitize string as before
         $str = preg_replace('/[^\PC\s]/u', '', $str);
         $str = trim($str);
